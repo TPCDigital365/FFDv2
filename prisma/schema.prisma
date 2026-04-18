@@ -1,0 +1,565 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  CS
+  FINANCE
+  MANAGER
+}
+
+enum ShipmentType {
+  IMPORT
+  EXPORT
+}
+
+enum ShipmentMode {
+  SEA
+  AIR
+  LAND
+}
+
+enum PortType {
+  SEA
+  AIR
+  LAND
+}
+
+enum ChargeType {
+  REVENUE
+  COST
+}
+
+enum VatType {
+  ZERO
+  SEVEN
+  EXEMPT
+}
+
+enum ContractStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum JobStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum CashAdvanceStatus {
+  PENDING_APPROVAL
+  APPROVED
+  CLEARED
+  CANCELLED
+}
+
+enum PaymentRequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum OicBatchType {
+  AR
+  AP
+}
+
+enum OicBatchStatus {
+  PENDING
+  SENT
+  CONFIRMED
+  ERROR
+}
+
+enum DocumentType {
+  BL
+  HAWB
+  DELIVERY_ORDER
+  INVOICE
+  PACKING_LIST
+  ARRIVAL_NOTICE
+  OTHER
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  ERROR
+}
+
+// ─── USERS ────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  azureOid  String   @unique @map("azure_oid")
+  email     String   @unique
+  name      String
+  role      UserRole @default(CS)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  createdJobs      Job[]           @relation("JobCreatedBy")
+  approvedAdvances CashAdvance[]   @relation("AdvanceApprovedBy")
+  requestedAdvances CashAdvance[]  @relation("AdvanceRequestedBy")
+  clearedAdvances  CashClearing[]  @relation("ClearingBy")
+  approvedPayments PaymentRequest[] @relation("PaymentApprovedBy")
+  createdInvoices  Invoice[]       @relation("InvoiceCreatedBy")
+  auditLogs        AuditLog[]
+  sessions         Session[]
+  accounts         Account[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─── MASTER DATA ──────────────────────────────────────────────────────────────
+
+model Customer {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  taxId        String?  @map("tax_id")
+  address      String?
+  contactName  String?  @map("contact_name")
+  email        String?
+  phone        String?
+  paymentTerms String   @default("NET30") @map("payment_terms")
+  currency     String   @default("THB")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  contracts Contract[]
+  invoices  Invoice[]
+
+  @@map("customers")
+}
+
+model Vendor {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  taxId        String?  @map("tax_id")
+  address      String?
+  contactName  String?  @map("contact_name")
+  email        String?
+  phone        String?
+  paymentTerms String   @default("NET30") @map("payment_terms")
+  currency     String   @default("THB")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  paymentRequests PaymentRequest[]
+
+  @@map("vendors")
+}
+
+model Port {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  country   String
+  type      PortType
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  originContracts Contract[] @relation("ContractOriginPort")
+  destContracts   Contract[] @relation("ContractDestPort")
+  originJobs      Job[]      @relation("JobOriginPort")
+  destJobs        Job[]      @relation("JobDestPort")
+
+  @@map("ports")
+}
+
+model ChargeCode {
+  id        String     @id @default(uuid())
+  code      String     @unique
+  name      String
+  type      ChargeType
+  glAccount String     @map("gl_account")
+  vatType   VatType    @default(SEVEN) @map("vat_type")
+  isActive  Boolean    @default(true) @map("is_active")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  jobCharges          JobCharge[]
+  paymentRequestItems PaymentRequestItem[]
+  invoiceItems        InvoiceItem[]
+
+  @@map("charge_codes")
+}
+
+// ─── CONTRACTS ────────────────────────────────────────────────────────────────
+
+model Contract {
+  id                   String         @id @default(uuid())
+  yeeflowContractNo    String         @unique @map("yeeflow_contract_no")
+  yeeflowQuotationNo   String?        @map("yeeflow_quotation_no")
+  customerId           String         @map("customer_id")
+  type                 ShipmentType
+  mode                 ShipmentMode
+  originPortId         String?        @map("origin_port_id")
+  destPortId           String?        @map("dest_port_id")
+  commodity            String?
+  incoterms            String?
+  freightTerm          String?        @map("freight_term")
+  status               ContractStatus @default(ACTIVE)
+  awardedAt            DateTime?      @map("awarded_at")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  customer   Customer @relation(fields: [customerId], references: [id])
+  originPort Port?    @relation("ContractOriginPort", fields: [originPortId], references: [id])
+  destPort   Port?    @relation("ContractDestPort", fields: [destPortId], references: [id])
+  jobs       Job[]
+
+  @@map("contracts")
+}
+
+// ─── JOBS ─────────────────────────────────────────────────────────────────────
+
+model Job {
+  id           String       @id @default(uuid())
+  jobNo        String       @unique @map("job_no")
+  contractId   String       @map("contract_id")
+  type         ShipmentType
+  mode         ShipmentMode
+  status       JobStatus    @default(DRAFT)
+  etd          DateTime?
+  eta          DateTime?
+  vesselName   String?      @map("vessel_name")
+  voyageNo     String?      @map("voyage_no")
+  flightNo     String?      @map("flight_no")
+  blNo         String?      @map("bl_no")
+  hawbNo       String?      @map("hawb_no")
+  mblNo        String?      @map("mbl_no")
+  shipper      String?
+  consignee    String?
+  originPortId String?      @map("origin_port_id")
+  destPortId   String?      @map("dest_port_id")
+  packages     Int?
+  grossWeightKg Decimal?    @map("gross_weight_kg") @db.Decimal(12, 3)
+  cbm          Decimal?     @db.Decimal(10, 3)
+  notes        String?
+  createdById  String       @map("created_by")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  contract        Contract         @relation(fields: [contractId], references: [id])
+  originPort      Port?            @relation("JobOriginPort", fields: [originPortId], references: [id])
+  destPort        Port?            @relation("JobDestPort", fields: [destPortId], references: [id])
+  createdBy       User             @relation("JobCreatedBy", fields: [createdById], references: [id])
+  containers      JobContainer[]
+  charges         JobCharge[]
+  cashAdvances    CashAdvance[]
+  paymentRequests PaymentRequest[]
+  invoices        Invoice[]
+  documents       Document[]
+
+  @@map("jobs")
+}
+
+model JobContainer {
+  id            String   @id @default(uuid())
+  jobId         String   @map("job_id")
+  containerNo   String   @map("container_no")
+  containerType String   @map("container_type")
+  sealNo        String?  @map("seal_no")
+  cbm           Decimal? @db.Decimal(10, 3)
+  weightKg      Decimal? @map("weight_kg") @db.Decimal(12, 3)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("job_containers")
+}
+
+model JobCharge {
+  id           String     @id @default(uuid())
+  jobId        String     @map("job_id")
+  chargeCodeId String     @map("charge_code_id")
+  description  String
+  qty          Decimal    @db.Decimal(10, 3)
+  unit         String
+  unitPrice    Decimal    @map("unit_price") @db.Decimal(15, 4)
+  currency     String     @default("THB")
+  exchangeRate Decimal    @default(1) @map("exchange_rate") @db.Decimal(10, 6)
+  totalThb     Decimal    @map("total_thb") @db.Decimal(15, 2)
+  type         ChargeType
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  job        Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  chargeCode ChargeCode @relation(fields: [chargeCodeId], references: [id])
+
+  @@map("job_charges")
+}
+
+// ─── FINANCE ──────────────────────────────────────────────────────────────────
+
+model CashAdvance {
+  id          String            @id @default(uuid())
+  jobId       String            @map("job_id")
+  requestedById String          @map("requested_by")
+  amount      Decimal           @db.Decimal(15, 2)
+  currency    String            @default("THB")
+  purpose     String
+  status      CashAdvanceStatus @default(PENDING_APPROVAL)
+  approvedById String?          @map("approved_by")
+  approvedAt  DateTime?         @map("approved_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  job         Job          @relation(fields: [jobId], references: [id])
+  requestedBy User         @relation("AdvanceRequestedBy", fields: [requestedById], references: [id])
+  approvedBy  User?        @relation("AdvanceApprovedBy", fields: [approvedById], references: [id])
+  clearing    CashClearing?
+
+  @@map("cash_advances")
+}
+
+model CashClearing {
+  id             String   @id @default(uuid())
+  cashAdvanceId  String   @unique @map("cash_advance_id")
+  clearedById    String   @map("cleared_by")
+  amountUsed     Decimal  @map("amount_used") @db.Decimal(15, 2)
+  amountReturned Decimal  @default(0) @map("amount_returned") @db.Decimal(15, 2)
+  notes          String?
+  clearedAt      DateTime @default(now()) @map("cleared_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  cashAdvance CashAdvance @relation(fields: [cashAdvanceId], references: [id])
+  clearedBy   User        @relation("ClearingBy", fields: [clearedById], references: [id])
+
+  @@map("cash_clearings")
+}
+
+// ─── ACCOUNTS PAYABLE ─────────────────────────────────────────────────────────
+
+model PaymentRequest {
+  id               String               @id @default(uuid())
+  prNo             String               @unique @map("pr_no")
+  jobId            String               @map("job_id")
+  vendorId         String               @map("vendor_id")
+  vendorInvoiceRef String?              @map("vendor_invoice_ref")
+  invoiceDate      DateTime?            @map("invoice_date") @db.Date
+  dueDate          DateTime?            @map("due_date") @db.Date
+  totalAmount      Decimal              @map("total_amount") @db.Decimal(15, 2)
+  vatAmount        Decimal              @default(0) @map("vat_amount") @db.Decimal(15, 2)
+  currency         String               @default("THB")
+  status           PaymentRequestStatus @default(DRAFT)
+  approvedById     String?              @map("approved_by")
+  paidAt           DateTime?            @map("paid_at")
+  notes            String?
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  job        Job                  @relation(fields: [jobId], references: [id])
+  vendor     Vendor               @relation(fields: [vendorId], references: [id])
+  approvedBy User?                @relation("PaymentApprovedBy", fields: [approvedById], references: [id])
+  items      PaymentRequestItem[]
+  oicItems   OicBatchItem[]       @relation("OicPayment")
+
+  @@map("payment_requests")
+}
+
+model PaymentRequestItem {
+  id               String  @id @default(uuid())
+  paymentRequestId String  @map("payment_request_id")
+  chargeCodeId     String  @map("charge_code_id")
+  description      String
+  qty              Decimal @db.Decimal(10, 3)
+  unitPrice        Decimal @map("unit_price") @db.Decimal(15, 4)
+  vatRate          Decimal @default(7) @map("vat_rate") @db.Decimal(5, 2)
+  vatAmount        Decimal @map("vat_amount") @db.Decimal(15, 2)
+  totalAmount      Decimal @map("total_amount") @db.Decimal(15, 2)
+
+  paymentRequest PaymentRequest @relation(fields: [paymentRequestId], references: [id], onDelete: Cascade)
+  chargeCode     ChargeCode     @relation(fields: [chargeCodeId], references: [id])
+
+  @@map("payment_request_items")
+}
+
+// ─── ACCOUNTS RECEIVABLE ──────────────────────────────────────────────────────
+
+model Invoice {
+  id          String        @id @default(uuid())
+  invoiceNo   String        @unique @map("invoice_no")
+  jobId       String        @map("job_id")
+  customerId  String        @map("customer_id")
+  invoiceDate DateTime      @default(now()) @map("invoice_date") @db.Date
+  dueDate     DateTime      @map("due_date") @db.Date
+  status      InvoiceStatus @default(DRAFT)
+  totalAmount Decimal       @map("total_amount") @db.Decimal(15, 2)
+  vatAmount   Decimal       @default(0) @map("vat_amount") @db.Decimal(15, 2)
+  currency    String        @default("THB")
+  notes       String?
+  createdById String        @map("created_by")
+  issuedAt    DateTime?     @map("issued_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  job        Job          @relation(fields: [jobId], references: [id])
+  customer   Customer     @relation(fields: [customerId], references: [id])
+  createdBy  User         @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  items      InvoiceItem[]
+  oicItems   OicBatchItem[] @relation("OicInvoice")
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id           String  @id @default(uuid())
+  invoiceId    String  @map("invoice_id")
+  chargeCodeId String  @map("charge_code_id")
+  description  String
+  qty          Decimal @db.Decimal(10, 3)
+  unit         String
+  unitPrice    Decimal @map("unit_price") @db.Decimal(15, 4)
+  currency     String  @default("THB")
+  exchangeRate Decimal @default(1) @map("exchange_rate") @db.Decimal(10, 6)
+  vatRate      Decimal @default(7) @map("vat_rate") @db.Decimal(5, 2)
+  vatAmount    Decimal @map("vat_amount") @db.Decimal(15, 2)
+  totalThb     Decimal @map("total_thb") @db.Decimal(15, 2)
+
+  invoice    Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  chargeCode ChargeCode @relation(fields: [chargeCodeId], references: [id])
+
+  @@map("invoice_items")
+}
+
+// ─── OIC INTERFACE ────────────────────────────────────────────────────────────
+
+model OicBatch {
+  id           String         @id @default(uuid())
+  batchDate    DateTime       @map("batch_date") @db.Date
+  type         OicBatchType
+  status       OicBatchStatus @default(PENDING)
+  recordCount  Int            @default(0) @map("record_count")
+  totalAmount  Decimal        @default(0) @map("total_amount") @db.Decimal(15, 2)
+  filePath     String?        @map("file_path")
+  sentAt       DateTime?      @map("sent_at")
+  confirmedAt  DateTime?      @map("confirmed_at")
+  errorMessage String?        @map("error_message")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  items OicBatchItem[]
+
+  @@map("oic_batches")
+}
+
+model OicBatchItem {
+  id               String  @id @default(uuid())
+  batchId          String  @map("batch_id")
+  refType          String  @map("ref_type")
+  invoiceId        String? @map("invoice_id")
+  paymentRequestId String? @map("payment_request_id")
+  glAccount        String  @map("gl_account")
+  debitAmount      Decimal @default(0) @map("debit_amount") @db.Decimal(15, 2)
+  creditAmount     Decimal @default(0) @map("credit_amount") @db.Decimal(15, 2)
+  currency         String  @default("THB")
+  accountingPeriod String  @map("accounting_period")
+
+  batch          OicBatch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  invoice        Invoice?        @relation("OicInvoice", fields: [invoiceId], references: [id])
+  paymentRequest PaymentRequest? @relation("OicPayment", fields: [paymentRequestId], references: [id])
+
+  @@map("oic_batch_items")
+}
+
+// ─── DOCUMENTS ────────────────────────────────────────────────────────────────
+
+model Document {
+  id          String       @id @default(uuid())
+  jobId       String       @map("job_id")
+  type        DocumentType
+  fileName    String       @map("file_name")
+  blobUrl     String?      @map("blob_url")
+  fileSizeKb  Int?         @map("file_size_kb")
+  createdById String       @map("created_by")
+  generatedAt DateTime     @default(now()) @map("generated_at")
+
+  job       Job    @relation(fields: [jobId], references: [id])
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@map("documents")
+}
+
+// ─── WEBHOOKS & AUDIT ─────────────────────────────────────────────────────────
+
+model WebhookLog {
+  id           String        @id @default(uuid())
+  source       String
+  eventType    String        @map("event_type")
+  payload      Json
+  status       WebhookStatus @default(RECEIVED)
+  errorMessage String?       @map("error_message")
+  processedAt  DateTime?     @map("processed_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  @@map("webhook_logs")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}

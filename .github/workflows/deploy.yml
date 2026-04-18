@@ -1,0 +1,58 @@
+name: Build & Deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: utlcffd.azurecr.io
+  IMAGE_NAME: ffd-system
+  RESOURCE_GROUP: utlc-ffd-rg
+  CONTAINER_APP_NAME: utlc-ffd-app
+  CONTAINER_APP_ENV: utlc-ffd-env
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to ACR
+        run: az acr login --name utlcffd
+
+      - name: Build & push Docker image
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} -t $REGISTRY/$IMAGE_NAME:latest .
+          docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
+          docker push $REGISTRY/$IMAGE_NAME:latest
+
+      - name: Run DB migrations
+        run: |
+          az containerapp job create \
+            --name ffd-migrate-${{ github.run_id }} \
+            --resource-group $RESOURCE_GROUP \
+            --environment $CONTAINER_APP_ENV \
+            --image $REGISTRY/$IMAGE_NAME:${{ github.sha }} \
+            --replica-timeout 300 \
+            --command "npx prisma migrate deploy" \
+            --env-vars DATABASE_URL=secretref:database-url \
+            || az containerapp job start \
+              --name ffd-migrate-${{ github.run_id }} \
+              --resource-group $RESOURCE_GROUP
+
+      - name: Deploy to Container Apps
+        run: |
+          az containerapp update \
+            --name $CONTAINER_APP_NAME \
+            --resource-group $RESOURCE_GROUP \
+            --image $REGISTRY/$IMAGE_NAME:${{ github.sha }}
+
+      - name: Azure logout
+        run: az logout
