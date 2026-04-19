@@ -2,7 +2,7 @@
 **United Thai Logistics Company Limited — Freight Forwarder Document System**
 
 ## ภาพรวมระบบ
-ระบบ FFD ใหม่ พัฒนาบน **Next.js 14 + TypeScript + Prisma + PostgreSQL** รันบน **Azure Container Apps**
+ระบบ FFD ใหม่ พัฒนาบน **Next.js 14 + TypeScript + Prisma + PostgreSQL** รันบน **Vercel** โดยใช้ **Supabase PostgreSQL** สำหรับฐานข้อมูล
 
 ## Modules
 | Module | รายละเอียด |
@@ -26,16 +26,21 @@
 
 ## Architecture
 ```
-Yeeflow CRM  ──webhook──►  FFD (Next.js)  ──batch──►  OIC  ──►  Oracle Fusion
-                                  │
-                          Azure PostgreSQL
-                          Azure Blob Storage
-                          Azure AD SSO
+Yeeflow CRM  ──webhook──►  FFD (Next.js on Vercel)  ──batch──►  OIC  ──►  Oracle Fusion
+                                       │
+                              Supabase PostgreSQL
+                              Azure AD SSO
 ```
+
+## Deployment Environments
+| Environment | URL | Database | Branch |
+|---|---|---|---|
+| Dev/UAT | ffdv2-dev.vercel.app | ffdv2_dev schema | develop |
+| Production | ffdv2.vercel.app | ffdv2_prod schema | main |
 
 ## Yeeflow Webhook
 ```
-POST https://ffd.utlc.co.th/api/webhooks/yeeflow
+POST https://ffdv2-dev.vercel.app/api/webhooks/yeeflow
 Header: x-webhook-secret: [YEEFLOW_WEBHOOK_SECRET]
 
 {
@@ -49,6 +54,25 @@ Header: x-webhook-secret: [YEEFLOW_WEBHOOK_SECRET]
 }
 ```
 
+## Vercel Deployment
+
+### Environment Variables (Vercel → Settings → Environment Variables)
+| Key | Description |
+|---|---|
+| `DATABASE_URL` | `postgresql://postgres.[REF]:[PASS]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&schema=ffdv2_dev` |
+| `DIRECT_URL` | `postgresql://postgres.[REF]:[PASS]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?schema=ffdv2_dev` |
+| `NEXTAUTH_SECRET` | Random secret string |
+| `NEXTAUTH_URL` | `https://ffdv2-dev.vercel.app` |
+| `AZURE_AD_CLIENT_ID` | ขอจาก IT |
+| `AZURE_AD_CLIENT_SECRET` | ขอจาก IT |
+| `AZURE_AD_TENANT_ID` | ขอจาก IT |
+| `YEEFLOW_WEBHOOK_SECRET` | Webhook secret |
+| `NODE_ENV` | `production` |
+
+> **หมายเหตุ:** `DATABASE_URL` ใช้ port **6543** (Transaction pooler) + `pgbouncer=true` สำหรับ Vercel
+> `DIRECT_URL` ใช้ port **5432** สำหรับ `prisma migrate deploy` เท่านั้น
+> สำหรับ ffdv2-prod ให้เปลี่ยน `schema=ffdv2_dev` → `schema=ffdv2_prod` และ NEXTAUTH_URL ตาม domain จริง
+
 ## OIC Batch Format (pipe-delimited)
 ```
 HEADER|AR_BATCH|20250418|UTLC|5
@@ -59,8 +83,8 @@ FOOTER|5|760000.00
 ## Local Setup
 ```bash
 npm install
-cp .env.example .env   # กรอกค่าจริง
-npm run db:migrate
+cp .env.example .env.local   # กรอกค่าจริง (DATABASE_URL + DIRECT_URL จาก Supabase)
+npx prisma migrate deploy     # run migrations ครั้งแรก
 npm run db:seed
 npm run dev
 ```
