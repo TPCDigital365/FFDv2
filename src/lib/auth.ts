@@ -1,15 +1,14 @@
 import { NextAuthOptions } from 'next-auth'
 import AzureADProvider from 'next-auth/providers/azure-ad'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import bcrypt from 'bcryptjs'
 import type { UserRole } from '@prisma/client'
 import { prisma } from './prisma'
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // No PrismaAdapter — using JWT strategy, adapter not needed for credentials login
   providers: [
-    // ─── Email / Password (ใช้สำหรับ test ก่อน Azure AD) ────────
+    // ─── Email / Password ────────────────────────────────────────
     CredentialsProvider({
       id: 'credentials',
       name: 'Email & Password',
@@ -54,15 +53,19 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        const dbUser = await prisma.user.findUnique({
-          where: { email: user.email! },
-          select: { id: true, role: true, name: true, isActive: true },
-        })
-        if (dbUser) {
-          token.id = dbUser.id
-          token.role = dbUser.role
-          token.name = dbUser.name
-          token.isActive = dbUser.isActive
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { email: user.email! },
+            select: { id: true, role: true, name: true, isActive: true },
+          })
+          if (dbUser) {
+            token.id = dbUser.id
+            token.role = dbUser.role
+            token.name = dbUser.name
+            token.isActive = dbUser.isActive
+          }
+        } catch (err) {
+          console.error('[auth] jwt callback error:', err)
         }
       }
       return token
@@ -74,21 +77,6 @@ export const authOptions: NextAuthOptions = {
         session.user.name = token.name as string
       }
       return session
-    },
-    async signIn({ user, account }) {
-      if (account?.provider === 'azure-ad' && user.email) {
-        await prisma.user.upsert({
-          where: { email: user.email },
-          update: { name: user.name ?? 'Unknown' },
-          create: {
-            email: user.email,
-            name: user.name ?? 'Unknown',
-            azureOid: account.providerAccountId,
-            role: 'CS',
-          },
-        })
-      }
-      return true
     },
   },
   pages: {
