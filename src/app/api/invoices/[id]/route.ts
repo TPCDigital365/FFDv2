@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (searchParams.get('download') === 'docx') {
     const buf = await generateInvoiceDoc(params.id)
     const invoice = await prisma.invoice.findUnique({ where: { id: params.id }, select: { invoiceNo: true } })
-    return new NextResponse(buf, {
+    return new NextResponse(new Uint8Array(buf), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'Content-Disposition': `attachment; filename="${invoice?.invoiceNo ?? 'invoice'}.docx"`,
