@@ -2,38 +2,31 @@ import { NextAuthOptions } from 'next-auth'
 import AzureADProvider from 'next-auth/providers/azure-ad'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
+import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
-    // ─── Test login (ใช้เมื่อยังไม่มี Azure AD) ─────────────────
+    // ─── Email / Password (ใช้สำหรับ test ก่อน Azure AD) ────────
     CredentialsProvider({
       id: 'credentials',
-      name: 'Test Login',
+      name: 'Email & Password',
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        const testEmail = process.env.TEST_ADMIN_EMAIL
-        const testPassword = process.env.TEST_ADMIN_PASSWORD
-        if (!testEmail || !testPassword) return null
-        if (
-          credentials?.email !== testEmail ||
-          credentials?.password !== testPassword
-        ) return null
+        if (!credentials?.email || !credentials?.password) return null
 
-        const user = await prisma.user.upsert({
-          where: { email: testEmail },
-          update: {},
-          create: {
-            email: testEmail,
-            name: 'Test Admin',
-            azureOid: `credentials:${testEmail}`,
-            role: 'ADMIN',
-          },
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
         })
+        if (!user || !user.passwordHash || !user.isActive) return null
+
+        const valid = await bcrypt.compare(credentials.password, user.passwordHash)
+        if (!valid) return null
+
         return { id: user.id, email: user.email, name: user.name }
       },
     }),

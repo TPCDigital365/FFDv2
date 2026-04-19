@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { UserRole } from '@prisma/client'
 
-const navItems = [
+const navItems: { section: string; adminOnly?: boolean; items: { href: string; label: string; icon: string }[] }[] = [
   {
     section: 'Operations',
     items: [
@@ -24,6 +24,13 @@ const navItems = [
     items: [
       { href: '/master',   label: 'Master Data',   icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4' },
       { href: '/reports',  label: 'Reports',       icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+    ],
+  },
+  {
+    section: 'Admin',
+    adminOnly: true,
+    items: [
+      { href: '/admin/users', label: 'จัดการ Users', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
     ],
   },
 ]
@@ -51,7 +58,7 @@ export function SidebarNav({ role }: { role: UserRole }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-        {navItems.map(group => (
+        {navItems.filter(g => !g.adminOnly || role === 'ADMIN').map(group => (
           <div key={group.section}>
             <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
               {group.section}
