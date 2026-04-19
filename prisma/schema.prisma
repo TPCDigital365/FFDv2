@@ -7,6 +7,7 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  schemas   = ["ffdv2_dev"]
 }
 
 // ─── ENUMS ────────────────────────────────────────────────────────────────────
@@ -16,40 +17,54 @@ enum UserRole {
   CS
   FINANCE
   MANAGER
+
+  @@schema("ffdv2_dev")
 }
 
 enum ShipmentType {
   IMPORT
   EXPORT
+
+  @@schema("ffdv2_dev")
 }
 
 enum ShipmentMode {
   SEA
   AIR
   LAND
+
+  @@schema("ffdv2_dev")
 }
 
 enum PortType {
   SEA
   AIR
   LAND
+
+  @@schema("ffdv2_dev")
 }
 
 enum ChargeType {
   REVENUE
   COST
+
+  @@schema("ffdv2_dev")
 }
 
 enum VatType {
   ZERO
   SEVEN
   EXEMPT
+
+  @@schema("ffdv2_dev")
 }
 
 enum ContractStatus {
   ACTIVE
   COMPLETED
   CANCELLED
+
+  @@schema("ffdv2_dev")
 }
 
 enum JobStatus {
@@ -57,6 +72,8 @@ enum JobStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+
+  @@schema("ffdv2_dev")
 }
 
 enum CashAdvanceStatus {
@@ -64,6 +81,8 @@ enum CashAdvanceStatus {
   APPROVED
   CLEARED
   CANCELLED
+
+  @@schema("ffdv2_dev")
 }
 
 enum PaymentRequestStatus {
@@ -72,6 +91,8 @@ enum PaymentRequestStatus {
   APPROVED
   PAID
   CANCELLED
+
+  @@schema("ffdv2_dev")
 }
 
 enum InvoiceStatus {
@@ -80,11 +101,15 @@ enum InvoiceStatus {
   PARTIALLY_PAID
   PAID
   CANCELLED
+
+  @@schema("ffdv2_dev")
 }
 
 enum OicBatchType {
   AR
   AP
+
+  @@schema("ffdv2_dev")
 }
 
 enum OicBatchStatus {
@@ -92,6 +117,8 @@ enum OicBatchStatus {
   SENT
   CONFIRMED
   ERROR
+
+  @@schema("ffdv2_dev")
 }
 
 enum DocumentType {
@@ -102,40 +129,44 @@ enum DocumentType {
   PACKING_LIST
   ARRIVAL_NOTICE
   OTHER
+
+  @@schema("ffdv2_dev")
 }
 
 enum WebhookStatus {
   RECEIVED
   PROCESSED
   ERROR
+
+  @@schema("ffdv2_dev")
 }
 
 // ─── USERS ────────────────────────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(uuid())
-  azureOid  String?  @unique @map("azure_oid")
-  email     String   @unique
-  name      String
-  role      UserRole @default(CS)
+  id           String   @id @default(uuid())
+  azureOid     String?  @unique @map("azure_oid")
+  email        String   @unique
+  name         String
+  role         UserRole @default(CS)
   isActive     Boolean  @default(true) @map("is_active")
   passwordHash String?  @map("password_hash")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  createdJobs      Job[]           @relation("JobCreatedBy")
-  approvedAdvances CashAdvance[]   @relation("AdvanceApprovedBy")
-  requestedAdvances CashAdvance[]  @relation("AdvanceRequestedBy")
-  clearedAdvances  CashClearing[]  @relation("ClearingBy")
-  approvedPayments PaymentRequest[] @relation("PaymentApprovedBy")
-  createdInvoices  Invoice[]       @relation("InvoiceCreatedBy")
-  auditLogs        AuditLog[]
-  sessions         Session[]
-  accounts         Account[]
-
-  documents        Document[]      @relation("DocumentCreatedBy")
+  createdJobs       Job[]            @relation("JobCreatedBy")
+  approvedAdvances  CashAdvance[]    @relation("AdvanceApprovedBy")
+  requestedAdvances CashAdvance[]    @relation("AdvanceRequestedBy")
+  clearedAdvances   CashClearing[]   @relation("ClearingBy")
+  approvedPayments  PaymentRequest[] @relation("PaymentApprovedBy")
+  createdInvoices   Invoice[]        @relation("InvoiceCreatedBy")
+  auditLogs         AuditLog[]
+  sessions          Session[]
+  accounts          Account[]
+  documents         Document[]       @relation("DocumentCreatedBy")
 
   @@map("users")
+  @@schema("ffdv2_dev")
 }
 
 model Account {
@@ -155,6 +186,7 @@ model Account {
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
+  @@schema("ffdv2_dev")
 }
 
 model Session {
@@ -165,6 +197,7 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
+  @@schema("ffdv2_dev")
 }
 
 // ─── MASTER DATA ──────────────────────────────────────────────────────────────
@@ -188,6 +221,7 @@ model Customer {
   invoices  Invoice[]
 
   @@map("customers")
+  @@schema("ffdv2_dev")
 }
 
 model Vendor {
@@ -208,6 +242,7 @@ model Vendor {
   paymentRequests PaymentRequest[]
 
   @@map("vendors")
+  @@schema("ffdv2_dev")
 }
 
 model Port {
@@ -225,6 +260,7 @@ model Port {
   destJobs        Job[]      @relation("JobDestPort")
 
   @@map("ports")
+  @@schema("ffdv2_dev")
 }
 
 model ChargeCode {
@@ -242,26 +278,27 @@ model ChargeCode {
   invoiceItems        InvoiceItem[]
 
   @@map("charge_codes")
+  @@schema("ffdv2_dev")
 }
 
 // ─── CONTRACTS ────────────────────────────────────────────────────────────────
 
 model Contract {
-  id                   String         @id @default(uuid())
-  yeeflowContractNo    String         @unique @map("yeeflow_contract_no")
-  yeeflowQuotationNo   String?        @map("yeeflow_quotation_no")
-  customerId           String         @map("customer_id")
-  type                 ShipmentType
-  mode                 ShipmentMode
-  originPortId         String?        @map("origin_port_id")
-  destPortId           String?        @map("dest_port_id")
-  commodity            String?
-  incoterms            String?
-  freightTerm          String?        @map("freight_term")
-  status               ContractStatus @default(ACTIVE)
-  awardedAt            DateTime?      @map("awarded_at")
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @updatedAt @map("updated_at")
+  id                 String         @id @default(uuid())
+  yeeflowContractNo  String         @unique @map("yeeflow_contract_no")
+  yeeflowQuotationNo String?        @map("yeeflow_quotation_no")
+  customerId         String         @map("customer_id")
+  type               ShipmentType
+  mode               ShipmentMode
+  originPortId       String?        @map("origin_port_id")
+  destPortId         String?        @map("dest_port_id")
+  commodity          String?
+  incoterms          String?
+  freightTerm        String?        @map("freight_term")
+  status             ContractStatus @default(ACTIVE)
+  awardedAt          DateTime?      @map("awarded_at")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
 
   customer   Customer @relation(fields: [customerId], references: [id])
   originPort Port?    @relation("ContractOriginPort", fields: [originPortId], references: [id])
@@ -269,36 +306,37 @@ model Contract {
   jobs       Job[]
 
   @@map("contracts")
+  @@schema("ffdv2_dev")
 }
 
 // ─── JOBS ─────────────────────────────────────────────────────────────────────
 
 model Job {
-  id           String       @id @default(uuid())
-  jobNo        String       @unique @map("job_no")
-  contractId   String       @map("contract_id")
-  type         ShipmentType
-  mode         ShipmentMode
-  status       JobStatus    @default(DRAFT)
-  etd          DateTime?
-  eta          DateTime?
-  vesselName   String?      @map("vessel_name")
-  voyageNo     String?      @map("voyage_no")
-  flightNo     String?      @map("flight_no")
-  blNo         String?      @map("bl_no")
-  hawbNo       String?      @map("hawb_no")
-  mblNo        String?      @map("mbl_no")
-  shipper      String?
-  consignee    String?
-  originPortId String?      @map("origin_port_id")
-  destPortId   String?      @map("dest_port_id")
-  packages     Int?
-  grossWeightKg Decimal?    @map("gross_weight_kg") @db.Decimal(12, 3)
-  cbm          Decimal?     @db.Decimal(10, 3)
-  notes        String?
-  createdById  String       @map("created_by")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
+  id            String       @id @default(uuid())
+  jobNo         String       @unique @map("job_no")
+  contractId    String       @map("contract_id")
+  type          ShipmentType
+  mode          ShipmentMode
+  status        JobStatus    @default(DRAFT)
+  etd           DateTime?
+  eta           DateTime?
+  vesselName    String?      @map("vessel_name")
+  voyageNo      String?      @map("voyage_no")
+  flightNo      String?      @map("flight_no")
+  blNo          String?      @map("bl_no")
+  hawbNo        String?      @map("hawb_no")
+  mblNo         String?      @map("mbl_no")
+  shipper       String?
+  consignee     String?
+  originPortId  String?      @map("origin_port_id")
+  destPortId    String?      @map("dest_port_id")
+  packages      Int?
+  grossWeightKg Decimal?     @map("gross_weight_kg") @db.Decimal(12, 3)
+  cbm           Decimal?     @db.Decimal(10, 3)
+  notes         String?
+  createdById   String       @map("created_by")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
   contract        Contract         @relation(fields: [contractId], references: [id])
   originPort      Port?            @relation("JobOriginPort", fields: [originPortId], references: [id])
@@ -312,6 +350,7 @@ model Job {
   documents       Document[]
 
   @@map("jobs")
+  @@schema("ffdv2_dev")
 }
 
 model JobContainer {
@@ -327,6 +366,7 @@ model JobContainer {
   job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@map("job_containers")
+  @@schema("ffdv2_dev")
 }
 
 model JobCharge {
@@ -347,29 +387,31 @@ model JobCharge {
   chargeCode ChargeCode @relation(fields: [chargeCodeId], references: [id])
 
   @@map("job_charges")
+  @@schema("ffdv2_dev")
 }
 
 // ─── FINANCE ──────────────────────────────────────────────────────────────────
 
 model CashAdvance {
-  id          String            @id @default(uuid())
-  jobId       String            @map("job_id")
-  requestedById String          @map("requested_by")
-  amount      Decimal           @db.Decimal(15, 2)
-  currency    String            @default("THB")
-  purpose     String
-  status      CashAdvanceStatus @default(PENDING_APPROVAL)
-  approvedById String?          @map("approved_by")
-  approvedAt  DateTime?         @map("approved_at")
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+  id            String            @id @default(uuid())
+  jobId         String            @map("job_id")
+  requestedById String            @map("requested_by")
+  amount        Decimal           @db.Decimal(15, 2)
+  currency      String            @default("THB")
+  purpose       String
+  status        CashAdvanceStatus @default(PENDING_APPROVAL)
+  approvedById  String?           @map("approved_by")
+  approvedAt    DateTime?         @map("approved_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
 
-  job         Job          @relation(fields: [jobId], references: [id])
-  requestedBy User         @relation("AdvanceRequestedBy", fields: [requestedById], references: [id])
-  approvedBy  User?        @relation("AdvanceApprovedBy", fields: [approvedById], references: [id])
+  job         Job           @relation(fields: [jobId], references: [id])
+  requestedBy User          @relation("AdvanceRequestedBy", fields: [requestedById], references: [id])
+  approvedBy  User?         @relation("AdvanceApprovedBy", fields: [approvedById], references: [id])
   clearing    CashClearing?
 
   @@map("cash_advances")
+  @@schema("ffdv2_dev")
 }
 
 model CashClearing {
@@ -386,6 +428,7 @@ model CashClearing {
   clearedBy   User        @relation("ClearingBy", fields: [clearedById], references: [id])
 
   @@map("cash_clearings")
+  @@schema("ffdv2_dev")
 }
 
 // ─── ACCOUNTS PAYABLE ─────────────────────────────────────────────────────────
@@ -415,6 +458,7 @@ model PaymentRequest {
   oicItems   OicBatchItem[]       @relation("OicPayment")
 
   @@map("payment_requests")
+  @@schema("ffdv2_dev")
 }
 
 model PaymentRequestItem {
@@ -432,6 +476,7 @@ model PaymentRequestItem {
   chargeCode     ChargeCode     @relation(fields: [chargeCodeId], references: [id])
 
   @@map("payment_request_items")
+  @@schema("ffdv2_dev")
 }
 
 // ─── ACCOUNTS RECEIVABLE ──────────────────────────────────────────────────────
@@ -453,13 +498,14 @@ model Invoice {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  job        Job          @relation(fields: [jobId], references: [id])
-  customer   Customer     @relation(fields: [customerId], references: [id])
-  createdBy  User         @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
-  items      InvoiceItem[]
-  oicItems   OicBatchItem[] @relation("OicInvoice")
+  job       Job           @relation(fields: [jobId], references: [id])
+  customer  Customer      @relation(fields: [customerId], references: [id])
+  createdBy User          @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  items     InvoiceItem[]
+  oicItems  OicBatchItem[] @relation("OicInvoice")
 
   @@map("invoices")
+  @@schema("ffdv2_dev")
 }
 
 model InvoiceItem {
@@ -480,6 +526,7 @@ model InvoiceItem {
   chargeCode ChargeCode @relation(fields: [chargeCodeId], references: [id])
 
   @@map("invoice_items")
+  @@schema("ffdv2_dev")
 }
 
 // ─── OIC INTERFACE ────────────────────────────────────────────────────────────
@@ -500,6 +547,7 @@ model OicBatch {
   items OicBatchItem[]
 
   @@map("oic_batches")
+  @@schema("ffdv2_dev")
 }
 
 model OicBatchItem {
@@ -519,6 +567,7 @@ model OicBatchItem {
   paymentRequest PaymentRequest? @relation("OicPayment", fields: [paymentRequestId], references: [id])
 
   @@map("oic_batch_items")
+  @@schema("ffdv2_dev")
 }
 
 // ─── DOCUMENTS ────────────────────────────────────────────────────────────────
@@ -533,10 +582,11 @@ model Document {
   createdById String       @map("created_by")
   generatedAt DateTime     @default(now()) @map("generated_at")
 
-  job       Job    @relation(fields: [jobId], references: [id])
-  createdBy User   @relation("DocumentCreatedBy", fields: [createdById], references: [id])
+  job       Job  @relation(fields: [jobId], references: [id])
+  createdBy User @relation("DocumentCreatedBy", fields: [createdById], references: [id])
 
   @@map("documents")
+  @@schema("ffdv2_dev")
 }
 
 // ─── WEBHOOKS & AUDIT ─────────────────────────────────────────────────────────
@@ -552,6 +602,7 @@ model WebhookLog {
   createdAt    DateTime      @default(now()) @map("created_at")
 
   @@map("webhook_logs")
+  @@schema("ffdv2_dev")
 }
 
 model AuditLog {
@@ -567,4 +618,5 @@ model AuditLog {
   user User @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
+  @@schema("ffdv2_dev")
 }
