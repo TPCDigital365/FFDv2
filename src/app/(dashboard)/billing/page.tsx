@@ -53,11 +53,11 @@ export default async function BillingPage({ searchParams }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="stat-card">
           <p className="text-xs text-gray-500">AR Outstanding</p>
-          <p className="text-xl font-semibold text-emerald-600">฿{thb(arSummary._sum.totalAmount ?? 0)}</p>
+          <p className="text-xl font-semibold text-emerald-600">฿{thb(Number(arSummary._sum.totalAmount ?? 0))}</p>
         </div>
         <div className="stat-card">
           <p className="text-xs text-gray-500">AP Pending Approval</p>
-          <p className="text-xl font-semibold text-amber-600">฿{thb(apSummary._sum.totalAmount ?? 0)}</p>
+          <p className="text-xl font-semibold text-amber-600">฿{thb(Number(apSummary._sum.totalAmount ?? 0))}</p>
         </div>
       </div>
 
@@ -110,8 +110,8 @@ export default async function BillingPage({ searchParams }: Props) {
                         {format(inv.dueDate, 'dd/MM/yy')}
                       </span>
                     </td>
-                    <td className="table-td text-right font-medium">฿{thb(inv.totalAmount)}</td>
-                    <td className="table-td text-right text-gray-400">฿{thb(inv.vatAmount)}</td>
+                    <td className="table-td text-right font-medium">฿{thb(Number(inv.totalAmount))}</td>
+                    <td className="table-td text-right text-gray-400">฿{thb(Number(inv.vatAmount))}</td>
                     <td className="table-td"><InvoiceStatusBadge status={inv.status} /></td>
                     <td className="table-td">
                       <div className="flex gap-1">
@@ -159,7 +159,7 @@ export default async function BillingPage({ searchParams }: Props) {
                     <td className="table-td text-xs">
                       {pr.dueDate ? format(pr.dueDate, 'dd/MM/yy') : '—'}
                     </td>
-                    <td className="table-td text-right font-medium">฿{thb(pr.totalAmount)}</td>
+                    <td className="table-td text-right font-medium">฿{thb(Number(pr.totalAmount))}</td>
                     <td className="table-td"><PrStatusBadge status={pr.status} /></td>
                     <td className="table-td text-gray-400 text-xs">{pr.approvedBy?.name ?? '—'}</td>
                     <td className="table-td">
