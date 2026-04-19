@@ -130,6 +130,8 @@ model User {
   sessions         Session[]
   accounts         Account[]
 
+  documents        Document[]      @relation("DocumentCreatedBy")
+
   @@map("users")
 }
 
@@ -529,7 +531,7 @@ model Document {
   generatedAt DateTime     @default(now()) @map("generated_at")
 
   job       Job    @relation(fields: [jobId], references: [id])
-  createdBy User   @relation(fields: [createdById], references: [id])
+  createdBy User   @relation("DocumentCreatedBy", fields: [createdById], references: [id])
 
   @@map("documents")
 }
