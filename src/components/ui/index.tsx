@@ -132,6 +132,6 @@ export function Skeleton({ className = '' }: { className?: string }) {
 
 // ─── Currency formatter ───────────────────────────────────────────────────────
 
-export function thb(amount: number | string) {
+export function thb(amount: number | string | { toNumber(): number }) {
   return new Intl.NumberFormat('th-TH', { style: 'decimal', minimumFractionDigits: 2 }).format(Number(amount))
 }
