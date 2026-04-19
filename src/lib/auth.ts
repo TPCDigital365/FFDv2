@@ -3,6 +3,7 @@ import AzureADProvider from 'next-auth/providers/azure-ad'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import bcrypt from 'bcryptjs'
+import type { UserRole } from '@prisma/client'
 import { prisma } from './prisma'
 
 export const authOptions: NextAuthOptions = {
@@ -62,7 +63,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id as string
-        session.user.role = token.role as string
+        session.user.role = token.role as UserRole
         session.user.name = token.name as string
       }
       return session
