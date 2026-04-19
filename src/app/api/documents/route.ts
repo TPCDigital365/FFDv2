@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return new NextResponse(buffer, {
+  return new NextResponse(new Uint8Array(buffer), {
     status: 201,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
