@@ -4,6 +4,27 @@ import { useState } from 'react'
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  const handleCredentials = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    const result = await signIn('credentials', {
+      email,
+      password,
+      callbackUrl: '/',
+      redirect: false,
+    })
+    if (result?.error) {
+      setError('Email หรือ Password ไม่ถูกต้อง')
+      setLoading(false)
+    } else if (result?.url) {
+      window.location.href = result.url
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
@@ -20,31 +41,64 @@ export default function LoginPage() {
           <p className="text-xs text-gray-500">United Thai Logistics Company Limited</p>
         </div>
 
-        <div className="space-y-3">
+        {/* Test login form */}
+        <form onSubmit={handleCredentials} className="space-y-3">
+          <div>
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
           <button
-            onClick={async () => {
-              setLoading(true)
-              await signIn('azure-ad', { callbackUrl: '/' })
-            }}
+            type="submit"
             disabled={loading}
             className="btn-primary w-full justify-center py-2.5"
           >
-            {loading ? (
-              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" viewBox="0 0 21 21" fill="currentColor">
-                <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-                <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-                <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-                <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-              </svg>
-            )}
-            {loading ? 'Signing in...' : 'Sign in with Microsoft'}
+            {loading ? 'Signing in...' : 'Sign in'}
           </button>
+        </form>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200" />
+          </div>
+          <div className="relative flex justify-center text-xs text-gray-400">
+            <span className="bg-white px-2">or</span>
+          </div>
         </div>
+
+        {/* Azure AD button */}
+        <button
+          onClick={async () => {
+            setLoading(true)
+            await signIn('azure-ad', { callbackUrl: '/' })
+          }}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 21 21" fill="currentColor">
+            <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+            <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+            <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+          </svg>
+          Sign in with Microsoft
+        </button>
 
         <p className="text-center text-xs text-gray-400">
           ใช้ account บริษัท UTLC เท่านั้น
